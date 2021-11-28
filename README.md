@@ -154,13 +154,12 @@ In addition you will have to implement the MVCCStorage::Read, MVCCStorage::Write
 
 
 Pseudocode for the algorithm to implement (in the RunMVCCScheduler method):
-
+```
   while (tp_.Active()) {
     Get the next new transaction request (if one is pending) and pass it to an execution thread.
   }
 
   In the execution thread:
-
     Read all necessary data for this transaction from storage (Note that you should lock the key before each read)
     Execute the transaction logic (i.e. call Run() on the transaction)
     Acquire all locks for keys in the write_set_
@@ -184,6 +183,7 @@ Pseudocode for the algorithm to implement (in the RunMVCCScheduler method):
     next_unique_id_++;
     txn_requests_.Push(txn);
     mutex_.Unlock();
+```
 
 ## Part 5: Analysis
 After implementing both locking schemes, both OCC schemes, and the MVCC scheme, please respond to the following questions in analysis.txt (text only, no formatting please).
