@@ -73,7 +73,7 @@ Txn* TxnProcessor::GetTxnResult() {
   while (!txn_results_.Pop(&txn)) {
     // No result yet. Wait a bit before trying again (to reduce contention on
     // atomic queues).
-    sleep(0.000001);
+    sleep((double) 0.000001);
   }
   return txn;
 }
@@ -128,7 +128,10 @@ void TxnProcessor::RunLockingScheduler() {
           // If readset_.size() + writeset_.size() > 1, and blocked, just abort
           if (txn->readset_.size() + txn->writeset_.size() > 1) {
             // Release all locks that already acquired
-            for (set<Key>::iterator it_reads = txn->readset_.begin(); true; ++it_reads) {
+            for (
+                set<Key>::iterator it_reads = txn->readset_.begin();
+                true;
+                ++it_reads) {
               lm_->Release(txn, *it_reads);
               if (it_reads == it) {
                 break;
@@ -148,11 +151,17 @@ void TxnProcessor::RunLockingScheduler() {
             // If readset_.size() + writeset_.size() > 1, and blocked, just abort
             if (txn->readset_.size() + txn->writeset_.size() > 1) {
               // Release all read locks that already acquired
-              for (set<Key>::iterator it_reads = txn->readset_.begin(); it_reads != txn->readset_.end(); ++it_reads) {
+              for (
+                  set<Key>::iterator it_reads = txn->readset_.begin();
+                  it_reads != txn->readset_.end();
+                  ++it_reads) {
                 lm_->Release(txn, *it_reads);
               }
               // Release all write locks that already acquired
-              for (set<Key>::iterator it_writes = txn->writeset_.begin(); true; ++it_writes) {
+              for (
+                  set<Key>::iterator it_writes = txn->writeset_.begin();
+                  true;
+                  ++it_writes) {
                 lm_->Release(txn, *it_writes);
                 if (it_writes == it) {
                   break;
@@ -345,6 +354,23 @@ void TxnProcessor::RunMVCCScheduler() {
   //
   // [For now, run serial scheduler in order to make it through the test
   // suite]
+  Txn* txn;
+  while (tp_.Active()) {
+    if (txn_requests_.Pop(&txn)) {
+      ExecuteTxn(txn);
+
+      if (txn->Status() == COMPLETED_A) {
+        txn->status_ = ABORTED;
+      } else if (txn->Status() == COMPLETED_C) {
+        txn->status_ = COMMITTED;
+      } else {
+        // unkown status
+        DIE("Completed Txn has an invalid TxnStatus: " << txn->Status());
+      }
+
+      txn_results_.Push(txn);
+    }
+  }
   RunSerialScheduler();
 }
 
