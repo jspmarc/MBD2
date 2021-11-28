@@ -84,6 +84,10 @@ class TxnProcessor {
   // OCC version of scheduler with parallel validation.
   void RunOCCParallelScheduler();
 
+  // Validasi transaksi di OCC parallel
+  // OCC version validation
+  void ValidateTxn(Txn* txn, set<Txn*>);
+
   // MVCC version of scheduler.
   void RunMVCCScheduler();
 
