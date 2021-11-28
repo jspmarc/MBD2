@@ -372,8 +372,8 @@ void TxnProcessor::RunOCCParallelScheduler() {
       //Clean/hapus
       active_set_.erase(p.first);
       //Not valid, restart karena belum complete
-      if(!p.validity){
-        p.transaksi->status_=INCOMPLETE;
+      if(!p.second){
+        p.first->status_=INCOMPLETE;
         NewTxnRequest(p.first);
         continue;
       }
@@ -398,6 +398,7 @@ void TxnProcessor::RunOCCParallelScheduler() {
   //Testing purpose
   // RunSerialScheduler();
 }
+//reference:https://github.com/bogiebro/cs438-hw2/
 
 //Validasi transaksi
 void TxnProcessor::ValidateTxn(Txn* txn, set<Txn*> active_set_copy){
