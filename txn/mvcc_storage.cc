@@ -49,7 +49,35 @@ bool MVCCStorage::Read(Key key, Value* result, int txn_unique_id) {
   // Hint: Iterate the version_lists and return the verion whose write timestamp
   // (version_id) is the largest write timestamp less than or equal to txn_unique_id.
 
-  return true;
+  int maximum_version_id = 0;
+  //cari dan ambil versionID yang maksimum
+  // current version <= txn_unique_id (?) 
+  for (auto& data : *mvcc_data_[key]) {
+    int currVersionID = data->version_id_;
+    if (currVersionID <= txn_unique_id){
+      maximum_version_id = currVersionID;
+    };
+  }
+  //cek jumlah data yang punya key "key". klo ga ada false langsung
+  if (mvcc_data_.count(key))
+  {
+    for (auto& data : *mvcc_data_[key]) {
+      // if R-TS(Ti) < TS(Ti) then R-Ts(Qk) = TS(Ti)
+      if (data->version_id_ == maximum_version_id){
+        if (data->max_read_id_ < txn_unique_id) 
+        {
+          data->max_read_id_ = txn_unique_id;
+        }
+        *result = data->value_;
+        return true;
+      }
+    }
+    return false;
+  }else
+  {
+     return false;
+  }
+  
 }
 
 
