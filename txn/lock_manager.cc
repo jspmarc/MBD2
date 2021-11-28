@@ -31,17 +31,21 @@ LockManagerA::LockManagerA(deque<Txn*>* ready_txns) {
 }
 
 bool LockManagerA::WriteLock(Txn* txn, const Key& key) {
-  bool empty = true;
   LockRequest rq(EXCLUSIVE, txn);
-  deque<LockRequest> *dq = _getLockQueue(key);
 
-  empty = dq->empty();
-  dq->push_back(rq);
-
-  if (!empty) { // Add to wait list, doesn't own lock.
-    txn_waits_[txn]++;
+  if (lock_table_[key]){
+    lock_table_[key]->push_back(rq);
+  } else {
+    deque<LockRequest> *dq = new deque<LockRequest>(1, rq);
+    lock_table_[key] = dq;
   }
-  return empty;
+
+  if (lock_table_[key]->size() == 1){
+    return true;
+  }
+  
+  txn_waits_[txn]++;
+  return false;
 }
 
 bool LockManagerA::ReadLock(Txn* txn, const Key& key) {
@@ -51,7 +55,7 @@ bool LockManagerA::ReadLock(Txn* txn, const Key& key) {
 }
 
 void LockManagerA::Release(Txn* txn, const Key& key) {
-  deque<LockRequest> *queue = _getLockQueue(key);
+  deque<LockRequest> *queue = lock_table_[key];
   bool removedOwner = true; // Is the lock removed the lock owner?
 
   // Delete the txn's exclusive lock.
@@ -66,8 +70,9 @@ void LockManagerA::Release(Txn* txn, const Key& key) {
   if (!queue->empty() && removedOwner) {
     // Give the next transaction the lock
     LockRequest next = queue->front();
+    txn_waits_[next.txn_]--;
 
-    if (--txn_waits_[next.txn_] == 0) {
+    if (--txn_waits_[next.txn_] <= 0) {
         ready_txns_->push_back(next.txn_);
         txn_waits_.erase(next.txn_);
     }
