@@ -344,79 +344,6 @@ void TxnProcessor::RunOCCParallelScheduler() {
   RunSerialScheduler();
 }
 
-void TxnProcessor::MVCCExecuteTxn(Txn* txn) {
-  if (DEBUG)
-    std::cout << "\nStarting transaction with ID: " << txn->unique_id_ << "\n";
-  // Read all necessary data for this transaction
-  Value val;
-  for (Key k : txn->readset_) {
-    if (DEBUG) std::cout << "\tStarting read for key " << k <<"\n";
-    storage_->Lock(k);
-    if (DEBUG) std::cout << "\t\tAcquired lock for key " << k <<"\n";
-    if (storage_->Read(k, &val, txn->unique_id_)) txn->reads_[k] = val;
-    storage_->Unlock(k);
-    if (DEBUG) std::cout << "\t\tReleased lock for key " << k <<"\n";
-    if (DEBUG) std::cout << "\tDone reading key " << k <<"\n";
-  }
-
-  if (DEBUG) std::cout << "\tExecuting transaction logic\n";
-  // Execute the transaction logic
-  txn->Run();
-  completed_txns_.Push(txn);
-  if (DEBUG) std::cout << "\tDone executing transaction logic\n";
-
-  // Acquire all locks for keys in the writeset_
-  bool keysGood = true;
-  for (Key key : txn->writeset_) {
-    if (DEBUG) std::cout << "\tAcquiring lock for key " << key << "\n";
-    storage_->Lock(key);
-
-    // Call MVCCStorage::CheckWrite method to check all keys in the writeset_
-    if (!storage_->CheckWrite(key, txn->unique_id_)) {
-      keysGood = false;
-      if (DEBUG) std::cout << "\tFAILED acquiring lock for key " << key << "\n";
-      break;
-    }
-    if (DEBUG) std::cout << "\tDone acquiring lock for key " << key << "\n";
-  }
-
-  // if (each key passed the check)
-  if (keysGood) {
-    if (DEBUG)
-      std::cout << "\tApplying writes for transaction " << txn->unique_id_ << "\n";
-    //  apply the writes
-    ApplyWrites(txn);
-
-    //  Release all locks for the keys in the write_set_
-    for (Key key : txn->writeset_) storage_->Unlock(key);
-
-
-    // Mark transaction as committed
-    txn->status_ = COMMITTED;
-    // Add it to result list
-    txn_results_.Push(txn);
-
-  // else if (at least one key failed the check)
-  } else {
-    if (DEBUG)
-      std::cout << "\tRestarting transaction " << txn->unique_id_ << "\n";
-    //  Release all locks for the keys in the write_set_
-    for (Key key : txn->writeset_) storage_->Unlock(key);
-
-
-    // Cleanup txn ()
-    txn->reads_.empty();
-    txn->writes_.empty();
-    txn->status_ = INCOMPLETE;
-
-    //  Restart txn ()
-    NewTxnRequest(txn);
-  }
-
-  if (DEBUG)
-    std::cout << "Done for transaction " << txn->unique_id_ << ".\n";
-}
-
 void TxnProcessor::RunMVCCScheduler() {
   // CPSC 438/538:
   //
@@ -438,5 +365,103 @@ void TxnProcessor::RunMVCCScheduler() {
       // this->MVCCExecuteTxn(txn);
     }
   }
+}
+
+bool TxnProcessor::MVCCCheckWrites(Txn* txn) {
+  // Acquire all locks for keys in the writeset_
+  for (Key key : txn->writeset_) {
+    if (DEBUG) std::cout << "\tChecking write lock status for key " << key << "\n";
+    // Call MVCCStorage::CheckWrite method to check all keys in the writeset_
+    if (!storage_->CheckWrite(key, txn->unique_id_)) {
+      if (DEBUG) std::cout << "\tKey " << key << "didn't get the required write lock\n";
+      return false;
+    }
+    if (DEBUG) std::cout << "\tKey " << key << "got the required lock\n";
+  }
+
+  return true;
+}
+
+void TxnProcessor::MVCCLockWriteKeys(Txn* txn) {
+  // Acquire all locks for keys in the writeset_
+  for (Key key : txn->writeset_) {
+    if (DEBUG) std::cout << "\tAcquiring lock for key " << key << "\n";
+    storage_->Lock(key);
+    if (DEBUG) std::cout << "\tDone acquiring lock for key " << key << "\n";
+  }
+}
+
+void TxnProcessor::MVCCUnlockWriteKeys(Txn* txn) {
+  // Acquire all locks for keys in the writeset_
+  for (Key key : txn->writeset_) {
+    if (DEBUG) std::cout << "\tReleasing lock for key " << key << "\n";
+    storage_->Unlock(key);
+    if (DEBUG) std::cout << "\tDone releasing lock for key " << key << "\n";
+  }
+}
+
+void TxnProcessor::MVCCExecuteTxn(Txn* txn) {
+  if (DEBUG)
+    std::cout << "\nStarting transaction with ID: " << txn->unique_id_ << "\n";
+  // Read all necessary data for this transaction
+  Value val;
+  for (Key k : txn->readset_) {
+    if (DEBUG) std::cout << "\tStarting read for key " << k <<"\n";
+    storage_->Lock(k);
+    if (DEBUG) std::cout << "\t\tAcquired lock for key " << k <<"\n";
+    if (storage_->Read(k, &val, txn->unique_id_)) txn->reads_[k] = val;
+    storage_->Unlock(k);
+    if (DEBUG) std::cout << "\t\tReleased lock for key " << k <<"\n";
+    if (DEBUG) std::cout << "\tDone reading key " << k <<"\n";
+  }
+
+  if (DEBUG) std::cout << "\tExecuting transaction logic\n";
+  // Execute the transaction logic
+  txn->Run();
+  if (DEBUG) std::cout << "\tDone executing transaction logic\n";
+
+  // Acquire all locks for keys in the writeset_
+  MVCCLockWriteKeys(txn);
+  // Call MVCCStorage::CheckWrite method to check all keys in the writeset_
+  bool keysGood = MVCCCheckWrites(txn);
+
+  // if (each key passed the check)
+  if (keysGood) {
+    if (DEBUG)
+      std::cout << "\tApplying writes for transaction " << txn->unique_id_ << "\n";
+
+    // Mark transaction as completed with a pending commit (pre-req of ApplyWrites)
+    txn->status_ = COMPLETED_C;
+    completed_txns_.Push(txn);
+    // apply the writes
+    ApplyWrites(txn);
+
+    //  Release all locks for the keys in the write_set_
+    MVCCUnlockWriteKeys(txn);
+
+    // Mark transaction as committed
+    txn->status_ = COMMITTED;
+    // Add it to result list
+    txn_results_.Push(txn);
+
+  // else if (at least one key failed the check)
+  } else {
+    if (DEBUG)
+      std::cout << "\tRestarting transaction " << txn->unique_id_ << "\n";
+    //  Release all locks for the keys in the write_set_
+    MVCCUnlockWriteKeys(txn);
+
+
+    // Cleanup txn ()
+    txn->reads_.empty();
+    txn->writes_.empty();
+    txn->status_ = INCOMPLETE;
+
+    //  Restart txn ()
+    NewTxnRequest(txn);
+  }
+
+  if (DEBUG)
+    std::cout << "Done for transaction " << txn->unique_id_ << ".\n";
 }
 
