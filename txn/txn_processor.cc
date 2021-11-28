@@ -321,6 +321,13 @@ void TxnProcessor::RunOCCScheduler() {
   }
 }
 
+// rate at which to start threads for transaction validation
+#define N 2
+
+// rate at which to return invalid transactions to the request queue
+// and report to the user
+#define M 10
+
 void TxnProcessor::RunOCCParallelScheduler() {
   // CPSC 438/538:
   //
@@ -349,26 +356,21 @@ void TxnProcessor::RunOCCParallelScheduler() {
 
     //Bentuk struktur pengecekan validitas transaksi
     //Suatu transaksi memiliki boolean apakah transaksi valid
-    struct validitas
-    {
-      Txn* transaksi;
-      bool validity;
-    } p;
-
+    std::pair<Txn*, bool> p;
     //Restart atau commit transaksi
     int j =0;
     while(j++<M && validated_txns_.Pop(&p)){
       //Clean/hapus
-      active_set_.erase(p.transaksi)
+      active_set_.erase(p.first);
       //Not valid, restart karena belum complete
       if(!p.validity){
         p.transaksi->status_=INCOMPLETE;
-        NewTxnRequest(p.transaksi);
+        NewTxnRequest(p.first);
         continue;
       }
       //Else transaksi sudah valid
       //Kembalikan ke client hasil transaksi
-      txn_results_.Push(p.transaksi);
+      txn_results_.Push(p.first);
     }
 
     //Set verified untuk transaksi yang telah selesai
@@ -376,7 +378,7 @@ void TxnProcessor::RunOCCParallelScheduler() {
     while(i++<N && completed_txns_.Pop(&txn)){
       set<Txn*> active_set_copy = set<Txn*>(active_set_);
       //insert
-      active_set_.Insert(txn);
+      active_set_.insert(txn);
       tp_.RunTask(new Method<TxnProcessor, void, Txn*, set<Txn*>> (
             this,
             &TxnProcessor::ValidateTxn,
@@ -395,14 +397,8 @@ void TxnProcessor::ValidateTxn(Txn* txn, set<Txn*> active_set_copy){
   if (txn->Status() == COMPLETED_A)
   {
     txn->status_ = ABORTED;
-    struct validitas
-    {
-      Txn* transaksi;
-      bool validity;
-    } p;
-    p.transaksi = txn;
-    p.validity = true;
-    validated_txns_.Push(p);
+    validated_txns_.Push(std::make_pair(txn, true));
+    return;
   }
   //Invalid status
   else if (txn->Status() != COMPLETED_C)
@@ -446,14 +442,7 @@ void TxnProcessor::ValidateTxn(Txn* txn, set<Txn*> active_set_copy){
   {
     ApplyWrites(txn);
   }
-  struct validitas
-  {
-    Txn* transaksi;
-    bool validity;
-  } p;
-  p.transaksi = txn;
-  p.validity = verified;
-  validated_txns_.Push(p);
+  validated_txns_.Push(std::make_pair(txn, verified));
 }
 
 void TxnProcessor::RunMVCCScheduler() {
