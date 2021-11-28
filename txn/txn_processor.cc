@@ -358,54 +358,54 @@ void TxnProcessor::RunOCCParallelScheduler() {
   // [For now, run serial scheduler in order to make it through the test
   // suite]
 
-  //Txn
-  Txn* txn;
-  // Mulai proses txn request
-  while (tp_.Active()) {
-    //Proses request
-    if (txn_requests_.Pop(&txn)) {
-      txn->occ_start_time_ = GetTime();
-      // Start txn running pada thread.
-      tp_.RunTask(new Method<TxnProcessor, void, Txn*>(
-                  this,
-                  &TxnProcessor::ExecuteTxn,
-                  txn));
-    }
+  // //Txn
+  // Txn* txn;
+  // // Mulai proses txn request
+  // while (tp_.Active()) {
+  //   //Proses request
+  //   if (txn_requests_.Pop(&txn)) {
+  //     txn->occ_start_time_ = GetTime();
+  //     // Start txn running pada thread.
+  //     tp_.RunTask(new Method<TxnProcessor, void, Txn*>(
+  //                 this,
+  //                 &TxnProcessor::ExecuteTxn,
+  //                 txn));
+  //   }
 
-    //Bentuk struktur pengecekan validitas transaksi
-    //Suatu transaksi memiliki boolean apakah transaksi valid
-    std::pair<Txn*, bool> p;
-    //Restart atau commit transaksi
-    int j =0;
-    while(j++<M && validated_txns_.Pop(&p)){
-      //Clean/hapus
-      active_set_.erase(p.first);
-      //Not valid, restart karena belum complete
-      if(!p.second){
-        p.first->status_=INCOMPLETE;
-        NewTxnRequest(p.first);
-        continue;
-      }
-      //Else transaksi sudah valid
-      //Kembalikan ke client hasil transaksi
-      txn_results_.Push(p.first);
-    }
+  //   //Bentuk struktur pengecekan validitas transaksi
+  //   //Suatu transaksi memiliki boolean apakah transaksi valid
+  //   std::pair<Txn*, bool> p;
+  //   //Restart atau commit transaksi
+  //   int j =0;
+  //   while(j++<M && validated_txns_.Pop(&p)){
+  //     //Clean/hapus
+  //     active_set_.erase(p.first);
+  //     //Not valid, restart karena belum complete
+  //     if(!p.second){
+  //       p.first->status_=INCOMPLETE;
+  //       NewTxnRequest(p.first);
+  //       continue;
+  //     }
+  //     //Else transaksi sudah valid
+  //     //Kembalikan ke client hasil transaksi
+  //     txn_results_.Push(p.first);
+  //   }
 
-    //Set verified untuk transaksi yang telah selesai
-    int i = 0;
-    while(i++<N && completed_txns_.Pop(&txn)){
-      set<Txn*> active_set_copy = set<Txn*>(active_set_);
-      //insert
-      active_set_.insert(txn);
-      tp_.RunTask(new Method<TxnProcessor, void, Txn*, set<Txn*>> (
-            this,
-            &TxnProcessor::ValidateTxn,
-            txn,
-            active_set_copy));
-    }
-  }
+  //   //Set verified untuk transaksi yang telah selesai
+  //   int i = 0;
+  //   while(i++<N && completed_txns_.Pop(&txn)){
+  //     set<Txn*> active_set_copy = set<Txn*>(active_set_);
+  //     //insert
+  //     active_set_.insert(txn);
+  //     tp_.RunTask(new Method<TxnProcessor, void, Txn*, set<Txn*>> (
+  //           this,
+  //           &TxnProcessor::ValidateTxn,
+  //           txn,
+  //           active_set_copy));
+  //   }
+  // }
   //Testing purpose
-  // RunSerialScheduler();
+  RunSerialScheduler();
 }
 //reference:https://github.com/bogiebro/cs438-hw2/
 
