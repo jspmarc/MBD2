@@ -1,0 +1,128 @@
+[
+  {
+    "arguments": [
+      "/usr/bin/g++",
+      "-g",
+      "-I.",
+      "-Iobj",
+      "-std=c++0x",
+      "-Wall",
+      "-Werror",
+      "-c",
+      "-o",
+      "obj/txn/storage.o",
+      "txn/storage.cc"
+    ],
+    "directory": "/home/josep/projects/tubes/mbd",
+    "file": "/home/josep/projects/tubes/mbd/txn/storage.cc",
+    "output": "/home/josep/projects/tubes/mbd/obj/txn/storage.o"
+  },
+  {
+    "arguments": [
+      "/usr/bin/g++",
+      "-g",
+      "-I.",
+      "-Iobj",
+      "-std=c++0x",
+      "-Wall",
+      "-Werror",
+      "-c",
+      "-o",
+      "obj/txn/mvcc_storage.o",
+      "txn/mvcc_storage.cc"
+    ],
+    "directory": "/home/josep/projects/tubes/mbd",
+    "file": "/home/josep/projects/tubes/mbd/txn/mvcc_storage.cc",
+    "output": "/home/josep/projects/tubes/mbd/obj/txn/mvcc_storage.o"
+  },
+  {
+    "arguments": [
+      "/usr/bin/g++",
+      "-g",
+      "-I.",
+      "-Iobj",
+      "-std=c++0x",
+      "-Wall",
+      "-Werror",
+      "-c",
+      "-o",
+      "obj/txn/txn.o",
+      "txn/txn.cc"
+    ],
+    "directory": "/home/josep/projects/tubes/mbd",
+    "file": "/home/josep/projects/tubes/mbd/txn/txn.cc",
+    "output": "/home/josep/projects/tubes/mbd/obj/txn/txn.o"
+  },
+  {
+    "arguments": [
+      "/usr/bin/g++",
+      "-g",
+      "-I.",
+      "-Iobj",
+      "-std=c++0x",
+      "-Wall",
+      "-Werror",
+      "-c",
+      "-o",
+      "obj/txn/lock_manager.o",
+      "txn/lock_manager.cc"
+    ],
+    "directory": "/home/josep/projects/tubes/mbd",
+    "file": "/home/josep/projects/tubes/mbd/txn/lock_manager.cc",
+    "output": "/home/josep/projects/tubes/mbd/obj/txn/lock_manager.o"
+  },
+  {
+    "arguments": [
+      "/usr/bin/g++",
+      "-g",
+      "-I.",
+      "-Iobj",
+      "-std=c++0x",
+      "-Wall",
+      "-Werror",
+      "-c",
+      "-o",
+      "obj/txn/txn_processor.o",
+      "txn/txn_processor.cc"
+    ],
+    "directory": "/home/josep/projects/tubes/mbd",
+    "file": "/home/josep/projects/tubes/mbd/txn/txn_processor.cc",
+    "output": "/home/josep/projects/tubes/mbd/obj/txn/txn_processor.o"
+  },
+  {
+    "arguments": [
+      "/usr/bin/g++",
+      "-g",
+      "-I.",
+      "-Iobj",
+      "-std=c++0x",
+      "-Wall",
+      "-Werror",
+      "-c",
+      "-o",
+      "obj/txn/lock_manager_test.o",
+      "txn/lock_manager_test.cc"
+    ],
+    "directory": "/home/josep/projects/tubes/mbd",
+    "file": "/home/josep/projects/tubes/mbd/txn/lock_manager_test.cc",
+    "output": "/home/josep/projects/tubes/mbd/obj/txn/lock_manager_test.o"
+  },
+  {
+    "arguments": [
+      "/usr/bin/g++",
+      "-g",
+      "-I.",
+      "-Iobj",
+      "-std=c++0x",
+      "-Wall",
+      "-Werror",
+      "-c",
+      "-o",
+      "obj/txn/txn_processor_test.o",
+      "txn/txn_processor_test.cc"
+    ],
+    "directory": "/home/josep/projects/tubes/mbd",
+    "file": "/home/josep/projects/tubes/mbd/txn/txn_processor_test.cc",
+    "output": "/home/josep/projects/tubes/mbd/obj/txn/txn_processor_test.o"
+  }
+]
