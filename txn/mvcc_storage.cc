@@ -55,12 +55,12 @@ bool MVCCStorage::Read(Key key, Value* result, int txn_unique_id) {
     return false;
   } 
   else{
-    int maxlessthan = 0;
+    int maxlimit = 0;
     deque<Version*> version_list = *data;
     for (deque<Version*>::iterator itr = version_list.begin(); itr != version_list.end(); itr++){
         Version* version = *itr;
         //get largest less than version
-        if (version->version_id_ <= txn_unique_id && version->version_id_ > maxlessthan){
+        if (version->version_id_ <= txn_unique_id && version->version_id_ > maxlimit){
           //set new version
           *result = version->value_;
           version->max_read_id_ = txn_unique_id;
