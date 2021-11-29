@@ -13,10 +13,10 @@ string ModeToString(CCMode mode) {
   switch (mode) {
     case SERIAL:                 return " Serial   ";
     case LOCKING_EXCLUSIVE_ONLY: return " Exc. Lock";
-    case LOCKING:                return " Locking B";
     case OCC:                    return " OCC      ";
-    case P_OCC:                  return " OCC-P    ";
     case MVCC:                   return " MVCC     ";
+    case P_OCC:                  return " OCC-P    ";
+    case LOCKING:                return " Locking B";
     default:                     return "INVALID MODE";
   }
 }
@@ -79,8 +79,8 @@ void Benchmark(const vector<LoadGen*>& lg) {
   deque<Txn*> doneTxns;
 
   // For each MODE...
-  for (CCMode mode = LOCKING_EXCLUSIVE_ONLY;
-      mode <= LOCKING_EXCLUSIVE_ONLY;
+  for (CCMode mode = SERIAL;
+      mode <= MVCC;
       mode = static_cast<CCMode>(mode+1)) {
     // Print out mode name.
     cout << ModeToString(mode) << flush;
