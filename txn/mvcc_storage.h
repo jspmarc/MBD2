@@ -27,28 +27,28 @@ class MVCCStorage : public Storage {
   // Returns the timestamp at which the record with the specified key was last
   // updated (returns 0 if the record has never been updated). This is used for OCC.
   virtual double Timestamp(Key key) {return 0;}
-
+  
   // Init storage
   virtual void InitStorage();
-
+  
   // Lock the version_list of key
   virtual void Lock(Key key);
-
+  
   // Unlock the version_list of key
   virtual void Unlock(Key key);
-
+  
   // Check whether apply or abort the write
   virtual bool CheckWrite (Key key, int txn_unique_id);
-
+  
   virtual ~MVCCStorage();
 
  private:
-
+ 
   friend class TxnProcessor;
-
+  
   // Storage for MVCC, each key has a linklist of versions
   unordered_map<Key, deque<Version*>*> mvcc_data_;
-
+  
   // Mutexs for each key
   unordered_map<Key, Mutex*> mutexs_;
 };
