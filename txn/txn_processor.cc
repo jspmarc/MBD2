@@ -223,9 +223,12 @@ void TxnProcessor::RunLockingScheduler() {
 }
 
 void TxnProcessor::ExecuteTxn(Txn* txn) {
+  // wipe reads_ and writes_
+  txn->reads_.clear();
+  txn->writes_.clear();
 
   // Get the start time
-  txn->occ_start_time_ = GetTime();
+  // txn->occ_start_time_ = GetTime();
 
   // Read everything in from readset.
   for (set<Key>::iterator it = txn->readset_.begin();
@@ -279,47 +282,69 @@ bool TxnProcessor::OCCValidateTransaction(const Txn &txn) const {
 }
 
 void TxnProcessor::RunOCCScheduler() {
+  Txn *txn;
   // Fetch transaction requests, and immediately begin executing them.
   while (tp_.Active()) {
-    Txn *txn;
     if (txn_requests_.Pop(&txn)) {
-
       // Start txn running in its own thread.
+      txn->occ_start_time_ = GetTime();
       tp_.RunTask(new Method<TxnProcessor, void, Txn*>(
                   this,
                   &TxnProcessor::ExecuteTxn,
                   txn));
     }
 
-    // Validate completed transactions, serially
-    Txn *finished;
-    while (completed_txns_.Pop(&finished)) {
-      if (finished->Status() == COMPLETED_A) {
-        finished->status_ = ABORTED;
-      } else {
-        bool valid = OCCValidateTransaction(*finished);
-        if (!valid) {
-          // Cleanup and restart
-          finished->reads_.empty();
-          finished->writes_.empty();
-          finished->status_ = INCOMPLETE;
-
-          mutex_.Lock();
-          txn->unique_id_ = next_unique_id_;
-          next_unique_id_++;
-          txn_requests_.Push(finished);
-          mutex_.Unlock();
-        } else {
-          // Commit the transaction
-          ApplyWrites(finished);
-          txn->status_ = COMMITTED;
+    // Verifikasi transaksi
+    bool verified = true;
+    while (completed_txns_.Pop(&txn)) {
+      // Mengecek overlap di readset
+      for (set<Key>::iterator it = txn->readset_.begin();
+           it != txn->readset_.end(); ++it) {
+        //Last modified > my start
+        if (storage_->Timestamp(*it) > txn->occ_start_time_) {
+          verified = false;
+          break;
         }
       }
 
-      txn_results_.Push(finished);
+      // Mengecek overlap di writeset
+      for (set<Key>::iterator it = txn->writeset_.begin();
+           it != txn->writeset_.end(); ++it) {
+        //Last modified > my start
+        if (storage_->Timestamp(*it) > txn->occ_start_time_) {
+          verified = false;
+          break;
+        }
+      }
+
+      // Commit/abort txn according to program logic's commit/abort decision.
+      if (txn->Status() == COMPLETED_C) {
+        if (verified) {
+          ApplyWrites(txn);
+        } else {
+          // Restart transaction
+          NewTxnRequest(txn);
+          continue;
+        }
+      } else if (txn->Status() == COMPLETED_A) {
+        txn->status_ = ABORTED;
+      } else {
+        // Invalid TxnStatus!
+        DIE("Completed Txn has invalid TxnStatus: " << txn->Status());
+      }
+
+      // Return result to client.
+      txn_results_.Push(txn);
     }
   }
 }
+
+// rate at which to start threads for transaction validation
+#define N 2
+
+// rate at which to return invalid transactions to the request queue
+// and report to the user
+#define M 10
 
 void TxnProcessor::RunOCCParallelScheduler() {
   // CPSC 438/538:
@@ -332,7 +357,111 @@ void TxnProcessor::RunOCCParallelScheduler() {
   //
   // [For now, run serial scheduler in order to make it through the test
   // suite]
+
+  // //Txn
+  // Txn* txn;
+  // // Mulai proses txn request
+  // while (tp_.Active()) {
+  //   //Proses request
+  //   if (txn_requests_.Pop(&txn)) {
+  //     txn->occ_start_time_ = GetTime();
+  //     // Start txn running pada thread.
+  //     tp_.RunTask(new Method<TxnProcessor, void, Txn*>(
+  //                 this,
+  //                 &TxnProcessor::ExecuteTxn,
+  //                 txn));
+  //   }
+
+  //   //Bentuk struktur pengecekan validitas transaksi
+  //   //Suatu transaksi memiliki boolean apakah transaksi valid
+  //   std::pair<Txn*, bool> p;
+  //   //Restart atau commit transaksi
+  //   int j =0;
+  //   while(j++<M && validated_txns_.Pop(&p)){
+  //     //Clean/hapus
+  //     active_set_.erase(p.first);
+  //     //Not valid, restart karena belum complete
+  //     if(!p.second){
+  //       p.first->status_=INCOMPLETE;
+  //       NewTxnRequest(p.first);
+  //       continue;
+  //     }
+  //     //Else transaksi sudah valid
+  //     //Kembalikan ke client hasil transaksi
+  //     txn_results_.Push(p.first);
+  //   }
+
+  //   //Set verified untuk transaksi yang telah selesai
+  //   int i = 0;
+  //   while(i++<N && completed_txns_.Pop(&txn)){
+  //     set<Txn*> active_set_copy = set<Txn*>(active_set_);
+  //     //insert
+  //     active_set_.insert(txn);
+  //     tp_.RunTask(new Method<TxnProcessor, void, Txn*, set<Txn*>> (
+  //           this,
+  //           &TxnProcessor::ValidateTxn,
+  //           txn,
+  //           active_set_copy));
+  //   }
+  // }
+  //Testing purpose
   RunSerialScheduler();
+}
+//reference:https://github.com/bogiebro/cs438-hw2/
+
+//Validasi transaksi
+void TxnProcessor::ValidateTxn(Txn* txn, set<Txn*> active_set_copy){
+  //Mengecek status selesai COMPLETED_C
+  //Jika abort
+  if (txn->Status() == COMPLETED_A)
+  {
+    txn->status_ = ABORTED;
+    validated_txns_.Push(std::make_pair(txn, true));
+    return;
+  }
+  //Invalid status
+  else if (txn->Status() != COMPLETED_C)
+  {
+    DIE("Completed Txn has invalid TxnStatus: " << txn->Status());
+  }
+  
+  //Semua transaksi sudah valid
+  bool verified = true;
+
+  //Cek overlap di readset
+  for(set<Key>::iterator it = txn->readset_.begin(); it!=txn->readset_.end();++it){
+    //Last modified > my start
+    if (storage_->Timestamp(*it) > txn->occ_start_time_)
+    {
+      verified = false;
+      break;
+    }
+  }
+
+  //Cek overlap di writeset
+  for (set<Key>::iterator it = txn->writeset_.begin(); it!=txn->writeset_.end();++it)
+  {
+    //Last modified > my start
+    if (storage_->Timestamp(*it) > txn->occ_start_time_)
+    {
+      verified = false;
+      break;
+    }
+  }
+  
+  //Cek overlap di writeset dengan read or write concurrent validating txn
+  for (set<Txn*>::iterator it = active_set_copy.begin();it != active_set_copy.end(); ++it) {
+    for (set<Key>::iterator it2 = txn->writeset_.begin();it2 != txn->writeset_.end(); ++it2) {
+      verified = verified && !(*it)->writeset_.count(*it2) && !(*it)->readset_.count(*it2);
+      if (!verified) break;
+    }
+  }
+
+  if (verified)
+  {
+    ApplyWrites(txn);
+  }
+  validated_txns_.Push(std::make_pair(txn, verified));
 }
 
 void TxnProcessor::RunMVCCScheduler() {

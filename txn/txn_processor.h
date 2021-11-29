@@ -84,6 +84,10 @@ class TxnProcessor {
   // OCC version of scheduler with parallel validation.
   void RunOCCParallelScheduler();
 
+  // Validasi transaksi di OCC parallel
+  // OCC version validation
+  void ValidateTxn(Txn* txn, set<Txn*>);
+
   // MVCC version of scheduler.
   void RunMVCCScheduler();
 
@@ -138,7 +142,11 @@ class TxnProcessor {
 
   // Set of transactions that are currently in the process of parallel
   // validation.
-  AtomicSet<Txn*> active_set_;
+  // AtomicSet<Txn*> active_set_;
+  set<Txn*> active_set_;
+
+  // Map of validated transactions to validity
+  AtomicQueue<std::pair<Txn*, bool>> validated_txns_;
 
   // Used it for critical section in parallel occ.
   Mutex active_set_mutex_;
