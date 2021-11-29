@@ -295,40 +295,41 @@ void TxnProcessor::RunOCCScheduler() {
     }
 
     // Verifikasi transaksi
-    bool verified = true;
+    bool validity = true;
     while (completed_txns_.Pop(&txn)) {
       // Mengecek overlap di readset
-      for (set<Key>::iterator it = txn->readset_.begin();
-           it != txn->readset_.end(); ++it) {
+      for (set<Key>::iterator it = txn->readset_.begin();it != txn->readset_.end(); ++it) {
         //Last modified > my start
         if (storage_->Timestamp(*it) > txn->occ_start_time_) {
-          verified = false;
+          validity = false;
           break;
         }
       }
 
       // Mengecek overlap di writeset
-      for (set<Key>::iterator it = txn->writeset_.begin();
-           it != txn->writeset_.end(); ++it) {
+      for (set<Key>::iterator it = txn->writeset_.begin();it != txn->writeset_.end(); ++it) {
         //Last modified > my start
         if (storage_->Timestamp(*it) > txn->occ_start_time_) {
-          verified = false;
+          validity = false;
           break;
         }
       }
 
       // Commit/abort txn according to program logic's commit/abort decision.
       if (txn->Status() == COMPLETED_C) {
-        if (verified) {
+        if (validity) {
           ApplyWrites(txn);
-        } else {
+        } 
+        else {
           // Restart transaction
           NewTxnRequest(txn);
           continue;
         }
-      } else if (txn->Status() == COMPLETED_A) {
+      } 
+      else if (txn->Status() == COMPLETED_A) {
         txn->status_ = ABORTED;
-      } else {
+      } 
+      else {
         // Invalid TxnStatus!
         DIE("Completed Txn has invalid TxnStatus: " << txn->Status());
       }
