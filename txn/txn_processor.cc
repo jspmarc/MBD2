@@ -73,7 +73,7 @@ Txn* TxnProcessor::GetTxnResult() {
   while (!txn_results_.Pop(&txn)) {
     // No result yet. Wait a bit before trying again (to reduce contention on
     // atomic queues).
-    sleep((double) 0.000001);
+    sleep(0.000001);
   }
   return txn;
 }
@@ -81,11 +81,11 @@ Txn* TxnProcessor::GetTxnResult() {
 void TxnProcessor::RunScheduler() {
   switch (mode_) {
     case SERIAL:                 RunSerialScheduler(); break;
-    case LOCKING:                RunLockingScheduler(); break;
     case LOCKING_EXCLUSIVE_ONLY: RunLockingScheduler(); break;
     case OCC:                    RunOCCScheduler(); break;
+    case MVCC:                   RunMVCCScheduler(); break;
     case P_OCC:                  RunOCCParallelScheduler(); break;
-    case MVCC:                   RunMVCCScheduler();
+    case LOCKING:                RunLockingScheduler();
   }
 }
 
@@ -128,10 +128,7 @@ void TxnProcessor::RunLockingScheduler() {
           // If readset_.size() + writeset_.size() > 1, and blocked, just abort
           if (txn->readset_.size() + txn->writeset_.size() > 1) {
             // Release all locks that already acquired
-            for (
-                set<Key>::iterator it_reads = txn->readset_.begin();
-                true;
-                ++it_reads) {
+            for (set<Key>::iterator it_reads = txn->readset_.begin(); true; ++it_reads) {
               lm_->Release(txn, *it_reads);
               if (it_reads == it) {
                 break;
@@ -151,17 +148,11 @@ void TxnProcessor::RunLockingScheduler() {
             // If readset_.size() + writeset_.size() > 1, and blocked, just abort
             if (txn->readset_.size() + txn->writeset_.size() > 1) {
               // Release all read locks that already acquired
-              for (
-                  set<Key>::iterator it_reads = txn->readset_.begin();
-                  it_reads != txn->readset_.end();
-                  ++it_reads) {
+              for (set<Key>::iterator it_reads = txn->readset_.begin(); it_reads != txn->readset_.end(); ++it_reads) {
                 lm_->Release(txn, *it_reads);
               }
               // Release all write locks that already acquired
-              for (
-                  set<Key>::iterator it_writes = txn->writeset_.begin();
-                  true;
-                  ++it_writes) {
+              for (set<Key>::iterator it_writes = txn->writeset_.begin(); true; ++it_writes) {
                 lm_->Release(txn, *it_writes);
                 if (it_writes == it) {
                   break;
@@ -304,40 +295,41 @@ void TxnProcessor::RunOCCScheduler() {
     }
 
     // Verifikasi transaksi
-    bool verified = true;
+    bool validity = true;
     while (completed_txns_.Pop(&txn)) {
       // Mengecek overlap di readset
-      for (set<Key>::iterator it = txn->readset_.begin();
-           it != txn->readset_.end(); ++it) {
+      for (set<Key>::iterator it = txn->readset_.begin();it != txn->readset_.end(); ++it) {
         //Last modified > my start
         if (storage_->Timestamp(*it) > txn->occ_start_time_) {
-          verified = false;
+          validity = false;
           break;
         }
       }
 
       // Mengecek overlap di writeset
-      for (set<Key>::iterator it = txn->writeset_.begin();
-           it != txn->writeset_.end(); ++it) {
+      for (set<Key>::iterator it = txn->writeset_.begin();it != txn->writeset_.end(); ++it) {
         //Last modified > my start
         if (storage_->Timestamp(*it) > txn->occ_start_time_) {
-          verified = false;
+          validity = false;
           break;
         }
       }
 
       // Commit/abort txn according to program logic's commit/abort decision.
       if (txn->Status() == COMPLETED_C) {
-        if (verified) {
+        if (validity) {
           ApplyWrites(txn);
-        } else {
+        } 
+        else {
           // Restart transaction
           NewTxnRequest(txn);
           continue;
         }
-      } else if (txn->Status() == COMPLETED_A) {
+      } 
+      else if (txn->Status() == COMPLETED_A) {
         txn->status_ = ABORTED;
-      } else {
+      } 
+      else {
         // Invalid TxnStatus!
         DIE("Completed Txn has invalid TxnStatus: " << txn->Status());
       }
@@ -483,114 +475,6 @@ void TxnProcessor::RunMVCCScheduler() {
   //
   // [For now, run serial scheduler in order to make it through the test
   // suite]
-  Txn* txn;
-  while (tp_.Active()) {
-    if (txn_requests_.Pop(&txn)) {
-      // bikin execution thread baru
-      tp_.RunTask(new Method<TxnProcessor, void, Txn*>(
-            this,
-            &TxnProcessor::MVCCExecuteTxn,
-            txn));
-      // this->MVCCExecuteTxn(txn);
-    }
-  }
-}
-
-bool TxnProcessor::MVCCCheckWrites(Txn* txn) {
-  // Acquire all locks for keys in the writeset_
-  for (Key key : txn->writeset_) {
-    if (DEBUG) std::cout << "\tChecking write lock status for key " << key << "\n";
-    // Call MVCCStorage::CheckWrite method to check all keys in the writeset_
-    if (!storage_->CheckWrite(key, txn->unique_id_)) {
-      if (DEBUG) std::cout << "\tKey " << key << "didn't get the required write lock\n";
-      return false;
-    }
-    if (DEBUG) std::cout << "\tKey " << key << "got the required lock\n";
-  }
-
-  return true;
-}
-
-void TxnProcessor::MVCCLockWriteKeys(Txn* txn) {
-  // Acquire all locks for keys in the writeset_
-  for (Key key : txn->writeset_) {
-    if (DEBUG) std::cout << "\tAcquiring lock for key " << key << "\n";
-    storage_->Lock(key);
-    if (DEBUG) std::cout << "\tDone acquiring lock for key " << key << "\n";
-  }
-}
-
-void TxnProcessor::MVCCUnlockWriteKeys(Txn* txn) {
-  // Acquire all locks for keys in the writeset_
-  for (Key key : txn->writeset_) {
-    if (DEBUG) std::cout << "\tReleasing lock for key " << key << "\n";
-    storage_->Unlock(key);
-    if (DEBUG) std::cout << "\tDone releasing lock for key " << key << "\n";
-  }
-}
-
-void TxnProcessor::MVCCExecuteTxn(Txn* txn) {
-  if (DEBUG)
-    std::cout << "\nStarting transaction with ID: " << txn->unique_id_ << "\n";
-  // Read all necessary data for this transaction
-  Value val;
-  for (Key k : txn->readset_) {
-    if (DEBUG) std::cout << "\tStarting read for key " << k <<"\n";
-    storage_->Lock(k);
-    if (DEBUG) std::cout << "\t\tAcquired lock for key " << k <<"\n";
-    if (storage_->Read(k, &val, txn->unique_id_)) txn->reads_[k] = val;
-    storage_->Unlock(k);
-    if (DEBUG) std::cout << "\t\tReleased lock for key " << k <<"\n";
-    if (DEBUG) std::cout << "\tDone reading key " << k <<"\n";
-  }
-
-  if (DEBUG) std::cout << "\tExecuting transaction logic\n";
-  // Execute the transaction logic
-  txn->Run();
-  if (DEBUG) std::cout << "\tDone executing transaction logic\n";
-
-  // Acquire all locks for keys in the writeset_
-  MVCCLockWriteKeys(txn);
-  // Call MVCCStorage::CheckWrite method to check all keys in the writeset_
-  bool keysGood = MVCCCheckWrites(txn);
-
-  // if (each key passed the check)
-  if (keysGood) {
-    if (DEBUG)
-      std::cout << "\tApplying writes for transaction " << txn->unique_id_ << "\n";
-
-    // Mark transaction as completed with a pending commit (pre-req of ApplyWrites)
-    txn->status_ = COMPLETED_C;
-    completed_txns_.Push(txn);
-    // apply the writes
-    ApplyWrites(txn);
-
-    //  Release all locks for the keys in the write_set_
-    MVCCUnlockWriteKeys(txn);
-
-    // Mark transaction as committed
-    txn->status_ = COMMITTED;
-    // Add it to result list
-    txn_results_.Push(txn);
-
-  // else if (at least one key failed the check)
-  } else {
-    if (DEBUG)
-      std::cout << "\tRestarting transaction " << txn->unique_id_ << "\n";
-    //  Release all locks for the keys in the write_set_
-    MVCCUnlockWriteKeys(txn);
-
-
-    // Cleanup txn ()
-    txn->reads_.empty();
-    txn->writes_.empty();
-    txn->status_ = INCOMPLETE;
-
-    //  Restart txn ()
-    NewTxnRequest(txn);
-  }
-
-  if (DEBUG)
-    std::cout << "Done for transaction " << txn->unique_id_ << ".\n";
+  RunSerialScheduler();
 }
 
