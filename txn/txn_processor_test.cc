@@ -79,8 +79,8 @@ void Benchmark(const vector<LoadGen*>& lg) {
   deque<Txn*> doneTxns;
 
   // For each MODE...
-  for (CCMode mode = LOCKING_EXCLUSIVE_ONLY;
-      mode <= LOCKING_EXCLUSIVE_ONLY;
+  for (CCMode mode = SERIAL;
+      mode <= MVCC;
       mode = static_cast<CCMode>(mode+1)) {
     // Print out mode name.
     cout << ModeToString(mode) << flush;

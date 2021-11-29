@@ -47,14 +47,13 @@ bool MVCCStorage::Read(Key key, Value* result, int txn_unique_id) {
   // Implement this method
   
     //cek jumlah data yang punya key "key". klo ga ada false langsung
-  if (mvcc_data_.count(key) && !(*mvcc_data_[key]).empty())
-  {
+  if (mvcc_data_.count(key) && !(*mvcc_data_[key]).empty()) {
       deque<Version*> data = *mvcc_data_[key];
       int maxVersion = 0;
       // Hint: Iterate the version_lists and return the verion whose write timestamp
       // (version_id) is the largest write timestamp less than or equal to txn_unique_id.
       for (deque<Version*>::iterator itr = data.begin(); itr != data.end();itr++) {
-        if((*itr)->version_id_ > maxVersion && (*itr)->version_id_ <= txn_unique_id){
+        if((*itr)->version_id_ > maxVersion && (*itr)->version_id_ <= txn_unique_id) {
            //return version dengan max terbesar
           *result = (*itr)->value_;
           //maxVersion diganti karena ada yang lebih max waktunya
@@ -66,9 +65,7 @@ bool MVCCStorage::Read(Key key, Value* result, int txn_unique_id) {
         }
       }
       return true;
-  }
-  else
-  {
+  } else {
      return false;
   }
   
