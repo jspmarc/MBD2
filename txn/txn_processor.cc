@@ -83,9 +83,9 @@ void TxnProcessor::RunScheduler() {
     case SERIAL:                 RunSerialScheduler(); break;
     case LOCKING_EXCLUSIVE_ONLY: RunLockingScheduler(); break;
     case OCC:                    RunOCCScheduler(); break;
-    case MVCC:                   RunMVCCScheduler();
-    // case P_OCC:                  RunOCCParallelScheduler(); break;
-    // case LOCKING:                RunLockingScheduler(); break;
+    case MVCC:                   RunMVCCScheduler(); break;
+    case P_OCC:                  RunOCCParallelScheduler(); break;
+    case LOCKING:                RunLockingScheduler();
   }
 }
 

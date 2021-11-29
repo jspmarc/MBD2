@@ -15,8 +15,8 @@ string ModeToString(CCMode mode) {
     case LOCKING_EXCLUSIVE_ONLY: return " Exc. Lock";
     case OCC:                    return " OCC      ";
     case MVCC:                   return " MVCC     ";
-    // case P_OCC:                  return " OCC-P    ";
-    // case LOCKING:                return " Locking B";
+    case P_OCC:                  return " OCC-P    ";
+    case LOCKING:                return " Locking B";
     default:                     return "INVALID MODE";
   }
 }
