@@ -31,12 +31,12 @@ LockManagerA::LockManagerA(deque<Txn*>* ready_txns) {
 }
 
 bool LockManagerA::WriteLock(Txn* txn, const Key& key) {
-  LockRequest rq(EXCLUSIVE, txn);
+  LockRequest req(EXCLUSIVE, txn);
 
   if (lock_table_[key]){
-    lock_table_[key]->push_back(rq);
+    lock_table_[key]->push_back(req);
   } else {
-    deque<LockRequest> *dq = new deque<LockRequest>(1, rq);
+    deque<LockRequest> *dq = new deque<LockRequest>(1, req);
     lock_table_[key] = dq;
   }
 
@@ -55,21 +55,21 @@ bool LockManagerA::ReadLock(Txn* txn, const Key& key) {
 }
 
 void LockManagerA::Release(Txn* txn, const Key& key) {
-  deque<LockRequest> *queue = lock_table_[key];
-  bool removedOwner = true; // Is the lock removed the lock owner?
+  deque<LockRequest> *dq = lock_table_[key];
+  bool isUnlocked = true; 
 
   // Delete the txn's exclusive lock.
-  for (auto it = queue->begin(); it < queue->end(); it++) {
-    if (it->txn_ == txn) { // TODO is it ok to just compare by address?
-        queue->erase(it);
+  for (auto item = dq->begin(); item < dq->end(); item++) {
+    if (item->txn_ == txn) {
+        dq->erase(item);
         break;
     }
-    removedOwner = false;
+    isUnlocked = false;
   }
 
-  if (!queue->empty() && removedOwner) {
+  if (!dq->empty() && isUnlocked) {
     // Give the next transaction the lock
-    LockRequest next = queue->front();
+    LockRequest next = dq->front();
     txn_waits_[next.txn_]--;
 
     if (--txn_waits_[next.txn_] <= 0) {
