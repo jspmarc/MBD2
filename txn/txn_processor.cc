@@ -81,11 +81,11 @@ Txn* TxnProcessor::GetTxnResult() {
 void TxnProcessor::RunScheduler() {
   switch (mode_) {
     case SERIAL:                 RunSerialScheduler(); break;
-    case LOCKING:                RunLockingScheduler(); break;
     case LOCKING_EXCLUSIVE_ONLY: RunLockingScheduler(); break;
     case OCC:                    RunOCCScheduler(); break;
-    case P_OCC:                  RunOCCParallelScheduler(); break;
     case MVCC:                   RunMVCCScheduler();
+    // case P_OCC:                  RunOCCParallelScheduler(); break;
+    // case LOCKING:                RunLockingScheduler(); break;
   }
 }
 
