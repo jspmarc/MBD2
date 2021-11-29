@@ -43,31 +43,30 @@ void MVCCStorage::Unlock(Key key) {
 bool MVCCStorage::Read(Key key, Value* result, int txn_unique_id) {
   // CPSC 438/538:
   //
-  // Implement this method!
-  // Hint: Iterate the version_lists and return the verion whose write timestamp
-  // (version_id) is the largest write timestamp less than or equal to txn_unique_id.
-  if(!mvcc_data_.count(key)){
-    return false;
+  // Implement this method
+  
+    //cek jumlah data yang punya key "key". klo ga ada false langsung
+  if (mvcc_data_.count(key) && !(*mvcc_data_[key]).empty()) {
+      deque<Version*> data = *mvcc_data_[key];
+      int maxVersion = 0;
+      // Hint: Iterate the version_lists and return the verion whose write timestamp
+      // (version_id) is the largest write timestamp less than or equal to txn_unique_id.
+      for (deque<Version*>::iterator itr = data.begin(); itr != data.end();itr++) {
+        if((*itr)->version_id_ > maxVersion && (*itr)->version_id_ <= txn_unique_id) {
+           //return version dengan max terbesar
+          *result = (*itr)->value_;
+          //maxVersion diganti karena ada yang lebih max waktunya
+          maxVersion = (*itr)->version_id_;
+          if((*itr)->max_read_id_ < txn_unique_id){
+            // if R-TS(Ti) < TS(Ti) then R-Ts(Qk) = TS(Ti)
+            (*itr)->max_read_id_ = txn_unique_id;  
+          }
+        }
+      }
+      return true;
+  } else {
+     return false;
   }
-
-  deque<Version*> *data = mvcc_data_[key];
-  if(data->empty()){
-    return false;
-  } 
-  else{
-    int maxlimit = 0;
-    deque<Version*> version_list = *data;
-    for (deque<Version*>::iterator itr = version_list.begin(); itr != version_list.end(); itr++){
-        Version* version = *itr;
-        //get largest less than version
-        if (version->version_id_ <= txn_unique_id && version->version_id_ > maxlimit){
-          //set new version
-          *result = version->value_;
-          version->max_read_id_ = txn_unique_id;
-        }  
-    }
-  }
-  return true;
 }
 
 
@@ -115,7 +114,7 @@ void MVCCStorage::Write(Key key, Value value, int txn_unique_id) {
   new_update->version_id_ = txn_unique_id;
   new_update->max_read_id_ = 0;
 
-  deque<Version*> versionX;
+  deque<Version*>* versionX;
   if(mvcc_data_.count(key)){
     versionX = mvcc_data_[key];
   }
